@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import crypto from "node:crypto";
 
-import { getDb } from "./db";
+import { sql, initSchema } from "./db";
 
 function generateId(): string {
   return crypto.randomUUID();
@@ -69,14 +69,12 @@ export const uploadDocument = createServerFn({ method: "POST" })
     return d;
   })
   .handler(async ({ data }) => {
-    const db = getDb();
+    await initSchema();
     const id = generateId();
     const mockExtraction = EXTRACTION_TEMPLATES[data.fileType] || { note: "Processing..." };
 
-    db.query(
-      `INSERT INTO documents (id, user_id, filename, file_type, extracted_data)
-       VALUES (?, ?, ?, ?, ?)`,
-    ).run(id, data.userId, data.filename, data.fileType, JSON.stringify(mockExtraction));
+    await sql`INSERT INTO documents (id, user_id, filename, file_type, extracted_data)
+      VALUES (${id}, ${data.userId}, ${data.filename}, ${data.fileType}, ${JSON.stringify(mockExtraction)})`;
 
     return { id, extracted_data: mockExtraction };
   });
@@ -88,18 +86,16 @@ export const getDocuments = createServerFn({ method: "GET" })
     return { userId, search };
   })
   .handler(async ({ data }) => {
-    const db = getDb();
+    await initSchema();
     let rows: any[];
     if (data.search) {
-      const q = db.query(
-        `SELECT * FROM documents
-         WHERE user_id = ? AND (filename LIKE ? OR file_type LIKE ?)
-         ORDER BY upload_date DESC`,
-      );
-      rows = q.all(data.userId, `%${data.search}%`, `%${data.search}%`);
+      rows = await sql`
+        SELECT * FROM documents
+        WHERE user_id = ${data.userId} AND (filename LIKE ${"%" + data.search + "%"} OR file_type LIKE ${"%" + data.search + "%"})
+        ORDER BY upload_date DESC
+      `;
     } else {
-      const q = db.query("SELECT * FROM documents WHERE user_id = ? ORDER BY upload_date DESC");
-      rows = q.all(data.userId);
+      rows = await sql`SELECT * FROM documents WHERE user_id = ${data.userId} ORDER BY upload_date DESC`;
     }
     return rows.map((r: any) => ({
       ...r,
@@ -114,9 +110,8 @@ export const getInvoices = createServerFn({ method: "GET" })
     return { userId };
   })
   .handler(async ({ data }) => {
-    const db = getDb();
-    const q = db.query("SELECT * FROM invoices WHERE user_id = ? ORDER BY due_date ASC");
-    const rows = q.all(data.userId) as any[];
+    await initSchema();
+    const rows = await sql`SELECT * FROM invoices WHERE user_id = ${data.userId} ORDER BY due_date ASC` as any[];
     return rows.map((r) => ({ ...r, amount: Number(r.amount) }));
   });
 
@@ -127,8 +122,8 @@ export const updateInvoiceStatus = createServerFn({ method: "POST" })
     return { invoiceId, status };
   })
   .handler(async ({ data }) => {
-    const db = getDb();
-    db.query("UPDATE invoices SET status = ? WHERE id = ?").run(data.status, data.invoiceId);
+    await initSchema();
+    await sql`UPDATE invoices SET status = ${data.status} WHERE id = ${data.invoiceId}`;
     return { success: true };
   });
 
@@ -139,10 +134,11 @@ export const getFinanceOverview = createServerFn({ method: "GET" })
     return { userId };
   })
   .handler(async ({ data }) => {
-    const db = getDb();
+    await initSchema();
 
     // Check if we need to seed mock data
-    const count = db.query("SELECT COUNT(*) as count FROM invoices WHERE user_id = ?").get(data.userId) as { count: number };
+    const countResult = await sql`SELECT COUNT(*) as count FROM invoices WHERE user_id = ${data.userId}`;
+    const count = countResult[0] as { count: number };
 
     if (count.count === 0) {
       const mockInvoices = [
@@ -156,16 +152,14 @@ export const getFinanceOverview = createServerFn({ method: "GET" })
         { vendor: "Legal Retainer", amount: 60000, due: "2026-08-20", inv_date: "2026-07-12", status: "paid" },
       ];
 
-      const insert = db.query(
-        `INSERT INTO invoices (id, user_id, vendor_name, amount, due_date, status, invoice_date)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      );
       for (const inv of mockInvoices) {
-        insert.run(generateId(), data.userId, inv.vendor, inv.amount, inv.due, inv.status, inv.inv_date);
+        await sql`INSERT INTO invoices (id, user_id, vendor_name, amount, due_date, status, invoice_date)
+          VALUES (${generateId()}, ${data.userId}, ${inv.vendor}, ${inv.amount}, ${inv.due}, ${inv.status}, ${inv.inv_date})`;
       }
 
       // Also seed compliance tasks
-      const existingCompliance = db.query("SELECT COUNT(*) as count FROM compliance_tasks WHERE user_id = ?").get(data.userId) as { count: number };
+      const existingComplianceResult = await sql`SELECT COUNT(*) as count FROM compliance_tasks WHERE user_id = ${data.userId}`;
+      const existingCompliance = existingComplianceResult[0] as { count: number };
       if (existingCompliance.count === 0) {
         // Import and run seeding inline to avoid circular issues
         const { seedComplianceTasks } = await import("./compliance");
@@ -174,21 +168,16 @@ export const getFinanceOverview = createServerFn({ method: "GET" })
     }
 
     // Get stats
-    const totalRevenue = db
-      .query("SELECT COALESCE(SUM(amount), 0) as total FROM invoices WHERE user_id = ? AND status = 'paid'")
-      .get(data.userId) as { total: number };
+    const totalRevenueResult = await sql`SELECT COALESCE(SUM(amount), 0) as total FROM invoices WHERE user_id = ${data.userId} AND status = 'paid'`;
+    const totalRevenue = totalRevenueResult[0] as { total: number };
 
-    const unpaidTotal = db
-      .query("SELECT COALESCE(SUM(amount), 0) as total FROM invoices WHERE user_id = ? AND status IN ('unpaid', 'overdue')")
-      .get(data.userId) as { total: number };
+    const unpaidTotalResult = await sql`SELECT COALESCE(SUM(amount), 0) as total FROM invoices WHERE user_id = ${data.userId} AND status IN ('unpaid', 'overdue')`;
+    const unpaidTotal = unpaidTotalResult[0] as { total: number };
 
-    const unpaidCount = db
-      .query("SELECT COUNT(*) as count FROM invoices WHERE user_id = ? AND status IN ('unpaid', 'overdue')")
-      .get(data.userId) as { count: number };
+    const unpaidCountResult = await sql`SELECT COUNT(*) as count FROM invoices WHERE user_id = ${data.userId} AND status IN ('unpaid', 'overdue')`;
+    const unpaidCount = unpaidCountResult[0] as { count: number };
 
-    const invoices = db
-      .query("SELECT * FROM invoices WHERE user_id = ? ORDER BY due_date ASC")
-      .all(data.userId) as any[];
+    const invoices = await sql`SELECT * FROM invoices WHERE user_id = ${data.userId} ORDER BY due_date ASC` as any[];
 
     return {
       totalRevenue: Number(totalRevenue.total),

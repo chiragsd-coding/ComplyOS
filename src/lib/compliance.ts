@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import crypto from "node:crypto";
 
-import { getDb } from "./db";
+import { sql, initSchema } from "./db";
 
 function generateId(): string {
   return crypto.randomUUID();
@@ -27,9 +27,10 @@ export const seedComplianceTasks = createServerFn({ method: "POST" })
     return { userId };
   })
   .handler(async ({ data }) => {
-    const db = getDb();
-    const q = db.query("SELECT COUNT(*) as count FROM compliance_tasks WHERE user_id = ?");
-    const existing = q.get(data.userId) as { count: number };
+    await initSchema();
+
+    const result = await sql`SELECT COUNT(*) as count FROM compliance_tasks WHERE user_id = ${data.userId}`;
+    const existing = result[0] as { count: number };
     if (existing.count > 0) return { seeded: existing.count };
 
     const now = new Date();
@@ -81,15 +82,11 @@ export const seedComplianceTasks = createServerFn({ method: "POST" })
       allDeadlines.push({ title: d.title, category: d.category, day: d.day, month: d.month });
     }
 
-    const insert = db.query(
-      `INSERT INTO compliance_tasks (id, user_id, title, category, due_date, status)
-       VALUES (?, ?, ?, ?, ?, 'pending')`,
-    );
-
     for (const d of allDeadlines) {
       const year = d.month < (now.getMonth() + 1) ? now.getFullYear() + 1 : now.getFullYear();
       const dueDate = new Date(year, d.month - 1, d.day).toISOString().split("T")[0];
-      insert.run(generateId(), data.userId, d.title, d.category, dueDate);
+      await sql`INSERT INTO compliance_tasks (id, user_id, title, category, due_date, status)
+        VALUES (${generateId()}, ${data.userId}, ${d.title}, ${d.category}, ${dueDate}, 'pending')`;
     }
 
     return { seeded: allDeadlines.length };
@@ -102,18 +99,12 @@ export const getComplianceTasks = createServerFn({ method: "GET" })
     return { userId, category };
   })
   .handler(async ({ data }) => {
-    const db = getDb();
+    await initSchema();
     let rows: ComplianceRow[];
     if (data.category && data.category !== "all") {
-      const q = db.query(
-        "SELECT * FROM compliance_tasks WHERE user_id = ? AND category = ? ORDER BY due_date ASC",
-      );
-      rows = q.all(data.userId, data.category) as ComplianceRow[];
+      rows = await sql`SELECT * FROM compliance_tasks WHERE user_id = ${data.userId} AND category = ${data.category} ORDER BY due_date ASC` as ComplianceRow[];
     } else {
-      const q = db.query(
-        "SELECT * FROM compliance_tasks WHERE user_id = ? ORDER BY due_date ASC",
-      );
-      rows = q.all(data.userId) as ComplianceRow[];
+      rows = await sql`SELECT * FROM compliance_tasks WHERE user_id = ${data.userId} ORDER BY due_date ASC` as ComplianceRow[];
     }
     return rows.map(formatTask);
   });
@@ -125,8 +116,8 @@ export const updateTaskStatus = createServerFn({ method: "POST" })
     return { taskId, status };
   })
   .handler(async ({ data }) => {
-    const db = getDb();
-    db.query("UPDATE compliance_tasks SET status = ? WHERE id = ?").run(data.status, data.taskId);
+    await initSchema();
+    await sql`UPDATE compliance_tasks SET status = ${data.status} WHERE id = ${data.taskId}`;
     return { success: true };
   });
 
@@ -137,46 +128,38 @@ export const getDashboardStats = createServerFn({ method: "GET" })
     return { userId };
   })
   .handler(async ({ data }) => {
-    const db = getDb();
+    await initSchema();
 
-    const upcoming = db
-      .query(
-        `SELECT COUNT(*) as count FROM compliance_tasks
-         WHERE user_id = ? AND status = 'pending' AND due_date >= date('now')`,
-      )
-      .get(data.userId) as { count: number };
+    const upcomingResult = await sql`
+      SELECT COUNT(*) as count FROM compliance_tasks
+      WHERE user_id = ${data.userId} AND status = 'pending' AND due_date::date >= CURRENT_DATE
+    `;
+    const upcoming = upcomingResult[0] as { count: number };
 
-    const overdue = db
-      .query(
-        `SELECT COUNT(*) as count FROM compliance_tasks
-         WHERE user_id = ? AND status = 'pending' AND due_date < date('now')`,
-      )
-      .get(data.userId) as { count: number };
+    const overdueResult = await sql`
+      SELECT COUNT(*) as count FROM compliance_tasks
+      WHERE user_id = ${data.userId} AND status = 'pending' AND due_date::date < CURRENT_DATE
+    `;
+    const overdue = overdueResult[0] as { count: number };
 
-    const pendingInvoices = db
-      .query(
-        `SELECT COUNT(*) as count FROM invoices
-         WHERE user_id = ? AND status IN ('unpaid', 'overdue')`,
-      )
-      .get(data.userId) as { count: number };
+    const pendingInvoicesResult = await sql`
+      SELECT COUNT(*) as count FROM invoices
+      WHERE user_id = ${data.userId} AND status IN ('unpaid', 'overdue')
+    `;
+    const pendingInvoices = pendingInvoicesResult[0] as { count: number };
 
-    const docCount = db
-      .query("SELECT COUNT(*) as count FROM documents WHERE user_id = ?")
-      .get(data.userId) as { count: number };
+    const docCountResult = await sql`SELECT COUNT(*) as count FROM documents WHERE user_id = ${data.userId}`;
+    const docCount = docCountResult[0] as { count: number };
 
-    const nextDeadlines = db
-      .query(
-        `SELECT * FROM compliance_tasks
-         WHERE user_id = ? AND status = 'pending'
-         ORDER BY due_date ASC LIMIT 5`,
-      )
-      .all(data.userId) as ComplianceRow[];
+    const nextDeadlines = await sql`
+      SELECT * FROM compliance_tasks
+      WHERE user_id = ${data.userId} AND status = 'pending'
+      ORDER BY due_date ASC LIMIT 5
+    ` as ComplianceRow[];
 
-    const recentInvoices = db
-      .query(
-        `SELECT * FROM invoices WHERE user_id = ? ORDER BY created_at DESC LIMIT 5`,
-      )
-      .all(data.userId) as any[];
+    const recentInvoices = await sql`
+      SELECT * FROM invoices WHERE user_id = ${data.userId} ORDER BY created_at DESC LIMIT 5
+    ` as any[];
 
     return {
       upcomingCount: upcoming.count,

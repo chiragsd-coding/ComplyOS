@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import * as bcrypt from "bcryptjs";
 import crypto from "node:crypto";
 
-import { getDb } from "./db";
+import { sql, initSchema } from "./db";
 
 export type User = {
   id: string;
@@ -29,22 +29,21 @@ export const signup = createServerFn({ method: "POST" })
     return { email, password, companyName };
   })
   .handler(async ({ data }) => {
-    const db = getDb();
-    const q = db.query("SELECT id FROM users WHERE email = ?");
-    const existing = q.get(data.email);
+    await initSchema();
+
+    const rows = await sql`SELECT id FROM users WHERE email = ${data.email}`;
+    const existing = rows[0];
     if (existing) {
       throw new Error("An account with this email already exists");
     }
 
     const id = generateId();
     const passwordHash = await bcrypt.hash(data.password, 10);
-    db.query(
-      "INSERT INTO users (id, email, password_hash, company_name) VALUES (?, ?, ?, ?)",
-    ).run(id, data.email, passwordHash, data.companyName);
+    await sql`INSERT INTO users (id, email, password_hash, company_name) VALUES (${id}, ${data.email}, ${passwordHash}, ${data.companyName})`;
 
     // Create session
     const sessionId = generateId();
-    db.query("INSERT INTO sessions (id, user_id) VALUES (?, ?)").run(sessionId, id);
+    await sql`INSERT INTO sessions (id, user_id) VALUES (${sessionId}, ${id})`;
 
     return {
       token: sessionId,
@@ -61,9 +60,10 @@ export const login = createServerFn({ method: "POST" })
     return { email, password };
   })
   .handler(async ({ data }) => {
-    const db = getDb();
-    const q = db.query("SELECT * FROM users WHERE email = ?");
-    const row = q.get(data.email) as
+    await initSchema();
+
+    const rows = await sql`SELECT * FROM users WHERE email = ${data.email}`;
+    const row = rows[0] as
       | { id: string; email: string; password_hash: string; company_name: string }
       | null;
 
@@ -78,7 +78,7 @@ export const login = createServerFn({ method: "POST" })
 
     // Create session
     const sessionId = generateId();
-    db.query("INSERT INTO sessions (id, user_id) VALUES (?, ?)").run(sessionId, row.id);
+    await sql`INSERT INTO sessions (id, user_id) VALUES (${sessionId}, ${row.id})`;
 
     return {
       token: sessionId,
@@ -95,13 +95,14 @@ export const getCurrentUser = createServerFn({ method: "GET" })
     if (!data.token) {
       return null;
     }
-    const db = getDb();
-    const q = db.query(
-      `SELECT u.id, u.email, u.company_name
-       FROM sessions s JOIN users u ON s.user_id = u.id
-       WHERE s.id = ?`,
-    );
-    const row = q.get(data.token) as User | null;
+    await initSchema();
+
+    const rows = await sql`
+      SELECT u.id, u.email, u.company_name
+      FROM sessions s JOIN users u ON s.user_id = u.id
+      WHERE s.id = ${data.token}
+    `;
+    const row = rows[0] as User | null;
     return row ?? null;
   });
 
@@ -112,7 +113,7 @@ export const logout = createServerFn({ method: "POST" })
   })
   .handler(async ({ data }) => {
     if (!data.token) return { success: true };
-    const db = getDb();
-    db.query("DELETE FROM sessions WHERE id = ?").run(data.token);
+    await initSchema();
+    await sql`DELETE FROM sessions WHERE id = ${data.token}`;
     return { success: true };
   });
