@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/")({
   component: Home,
@@ -157,12 +157,12 @@ function Home() {
               Pricing
             </a>
           </div>
-          <a
-            href="#cta"
+          <Link
+            to="/signup"
             className="rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-brand-700 active:scale-[0.97]"
           >
             Get Early Access
-          </a>
+          </Link>
         </nav>
       </header>
 
@@ -182,20 +182,20 @@ function Home() {
             </span>
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-gray-600 sm:text-xl">
-            One AI-native dashboard that replaces Excel, email, ERPs, and CAs for
-            compliance and operations. Connect documents, workflows, compliance
-            calendars, and financial data into a single pane of glass.
+            Replace the chaos of Excel, email, and CA back-and-forth with one
+            AI-powered dashboard. Connect compliance, finances, and operations —
+            so you never miss a deadline, a renewal, or an unpaid invoice again.
           </p>
           <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
-            <a
-              href="#cta"
+            <Link
+              to="/signup"
               className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-8 py-4 text-base font-semibold text-white shadow-lg shadow-brand-200 transition-all hover:bg-brand-700 hover:shadow-xl hover:shadow-brand-200 active:scale-[0.97]"
             >
               Get Early Access
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
               </svg>
-            </a>
+            </Link>
             <a
               href="#product"
               className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-8 py-4 text-base font-semibold text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:shadow-md active:scale-[0.97]"
@@ -208,7 +208,7 @@ function Home() {
           </div>
           {/* Social proof mini */}
           <p className="mt-8 text-sm text-gray-500">
-            Join 500+ Indian SMEs already on the waitlist
+            Built for Indian SMEs — simple, secure, AI-native
           </p>
         </div>
         {/* Dashboard preview placeholder */}
@@ -270,18 +270,13 @@ function Home() {
         </div>
       </section>
 
-      {/* ─── Logos / Trusted by ────────────────────────────────────── */}
+      {/* ─── Built for India ──────────────────────────────────────── */}
       <section className="border-y border-gray-100 bg-gray-50/50 py-12">
         <div className="mx-auto max-w-7xl px-6 text-center">
-          <p className="text-sm font-medium text-gray-500">Trusted by high-growth Indian companies</p>
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-x-12 gap-y-4 text-sm font-semibold text-gray-400">
-            <span className="text-lg">Razorpay</span>
-            <span className="text-lg">Groww</span>
-            <span className="text-lg">CRED</span>
-            <span className="text-lg">Zerodha</span>
-            <span className="text-lg">Urban Company</span>
-            <span className="text-lg">BharatPe</span>
-          </div>
+          <p className="text-sm font-medium text-gray-500">Built for Indian SMEs</p>
+          <p className="mt-3 max-w-xl mx-auto text-sm text-gray-400">
+            Purpose-built for India's regulatory landscape — GST, TDS, PF, ESIC, ROC, and DPDP Act compliance out of the box.
+          </p>
         </div>
       </section>
 
@@ -494,8 +489,8 @@ function Home() {
                     </li>
                   ))}
                 </ul>
-                <a
-                  href="#cta"
+                <Link
+                  to="/signup"
                   className={`mt-8 block rounded-xl px-6 py-3 text-center text-sm font-semibold shadow-sm transition-all active:scale-[0.97] ${
                     plan.highlighted
                       ? "bg-brand-600 text-white hover:bg-brand-700"
@@ -503,7 +498,7 @@ function Home() {
                   }`}
                 >
                   {plan.cta}
-                </a>
+                </Link>
               </div>
             ))}
           </div>
@@ -520,19 +515,19 @@ function Home() {
                 Ready to never miss a compliance deadline again?
               </h2>
               <p className="mx-auto mt-4 max-w-xl text-lg text-brand-100">
-                Join 500+ Indian SMEs using ComplyOS to automate compliance, track
-                finances, and run their business from one dashboard.
+                Automate compliance, track finances, and run your entire business
+                from one AI-powered dashboard.
               </p>
               <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
-                <a
-                  href="#"
+                <Link
+                  to="/signup"
                   className="inline-flex items-center gap-2 rounded-xl bg-white px-8 py-4 text-base font-semibold text-brand-700 shadow-lg transition-all hover:bg-brand-50 active:scale-[0.97]"
                 >
                   Start Free Trial
                   <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
                   </svg>
-                </a>
+                </Link>
                 <p className="text-sm text-brand-200">No credit card required · Free for 14 days</p>
               </div>
             </div>
