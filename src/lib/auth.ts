@@ -31,7 +31,7 @@ export const signup = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     await initSchema();
 
-    const rows = await sql`SELECT id FROM users WHERE email = ${data.email}`;
+    const rows = await sql()`SELECT id FROM users WHERE email = ${data.email}`;
     const existing = rows[0];
     if (existing) {
       throw new Error("An account with this email already exists");
@@ -39,11 +39,11 @@ export const signup = createServerFn({ method: "POST" })
 
     const id = generateId();
     const passwordHash = await bcrypt.hash(data.password, 10);
-    await sql`INSERT INTO users (id, email, password_hash, company_name) VALUES (${id}, ${data.email}, ${passwordHash}, ${data.companyName})`;
+    await sql()`INSERT INTO users (id, email, password_hash, company_name) VALUES (${id}, ${data.email}, ${passwordHash}, ${data.companyName})`;
 
     // Create session
     const sessionId = generateId();
-    await sql`INSERT INTO sessions (id, user_id) VALUES (${sessionId}, ${id})`;
+    await sql()`INSERT INTO sessions (id, user_id) VALUES (${sessionId}, ${id})`;
 
     return {
       token: sessionId,
@@ -62,7 +62,7 @@ export const login = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     await initSchema();
 
-    const rows = await sql`SELECT * FROM users WHERE email = ${data.email}`;
+    const rows = await sql()`SELECT * FROM users WHERE email = ${data.email}`;
     const row = rows[0] as
       | { id: string; email: string; password_hash: string; company_name: string }
       | null;
@@ -78,7 +78,7 @@ export const login = createServerFn({ method: "POST" })
 
     // Create session
     const sessionId = generateId();
-    await sql`INSERT INTO sessions (id, user_id) VALUES (${sessionId}, ${row.id})`;
+    await sql()`INSERT INTO sessions (id, user_id) VALUES (${sessionId}, ${row.id})`;
 
     return {
       token: sessionId,
@@ -97,7 +97,7 @@ export const getCurrentUser = createServerFn({ method: "GET" })
     }
     await initSchema();
 
-    const rows = await sql`
+    const rows = await sql()`
       SELECT u.id, u.email, u.company_name
       FROM sessions s JOIN users u ON s.user_id = u.id
       WHERE s.id = ${data.token}
@@ -114,6 +114,6 @@ export const logout = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     if (!data.token) return { success: true };
     await initSchema();
-    await sql`DELETE FROM sessions WHERE id = ${data.token}`;
+    await sql()`DELETE FROM sessions WHERE id = ${data.token}`;
     return { success: true };
   });

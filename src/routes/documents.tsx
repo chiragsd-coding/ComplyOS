@@ -5,7 +5,7 @@ import {
   LoadingSpinner,
   PageHeader,
 } from "~/components/DashboardLayout";
-import { uploadDocument, getDocuments } from "~/lib/documents";
+import { uploadDocument, getDocuments, seedDocuments } from "~/lib/documents";
 import { useAuth } from "~/lib/use-auth";
 
 export const Route = createFileRoute("/documents")({
@@ -58,6 +58,18 @@ function DocumentsPage() {
     }
   }
 
+  async function handleSeedDocs() {
+    try {
+      const result = await seedDocuments({ data: { userId: user!.id } });
+      if (result.seeded) {
+        setUploadMsg(`${result.seeded} sample documents added!`);
+        await loadDocs();
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to add sample documents");
+    }
+  }
+
   async function handleUpload(e: React.FormEvent) {
     e.preventDefault();
     const fileInput = fileInputRef.current;
@@ -105,6 +117,32 @@ function DocumentsPage() {
       {uploadMsg && (
         <div className="mb-4 rounded-lg bg-green-50 px-4 py-3 text-sm text-green-700 ring-1 ring-green-200/50">
           {uploadMsg}
+        </div>
+      )}
+
+      {/* Seed sample docs button */}
+      {docs.length === 0 && (
+        <div className="mb-6 rounded-xl border border-brand-100 bg-brand-50/50 p-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-100 text-brand-600">
+              📂
+            </div>
+            <div className="flex-1">
+              <h4 className="text-sm font-semibold text-brand-900">
+                No documents yet
+              </h4>
+              <p className="text-xs text-brand-700">
+                Want to see how document AI extraction works? Add some sample docs.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleSeedDocs}
+              className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700"
+            >
+              Add Sample Docs
+            </button>
+          </div>
         </div>
       )}
 

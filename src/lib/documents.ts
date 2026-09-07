@@ -73,7 +73,7 @@ export const uploadDocument = createServerFn({ method: "POST" })
     const id = generateId();
     const mockExtraction = EXTRACTION_TEMPLATES[data.fileType] || { note: "Processing..." };
 
-    await sql`INSERT INTO documents (id, user_id, filename, file_type, extracted_data)
+    await sql()`INSERT INTO documents (id, user_id, filename, file_type, extracted_data)
       VALUES (${id}, ${data.userId}, ${data.filename}, ${data.fileType}, ${JSON.stringify(mockExtraction)})`;
 
     return { id, extracted_data: mockExtraction };
@@ -89,13 +89,13 @@ export const getDocuments = createServerFn({ method: "GET" })
     await initSchema();
     let rows: any[];
     if (data.search) {
-      rows = await sql`
+      rows = await sql()`
         SELECT * FROM documents
         WHERE user_id = ${data.userId} AND (filename LIKE ${"%" + data.search + "%"} OR file_type LIKE ${"%" + data.search + "%"})
         ORDER BY upload_date DESC
       `;
     } else {
-      rows = await sql`SELECT * FROM documents WHERE user_id = ${data.userId} ORDER BY upload_date DESC`;
+      rows = await sql()`SELECT * FROM documents WHERE user_id = ${data.userId} ORDER BY upload_date DESC`;
     }
     return rows.map((r: any) => ({
       ...r,
@@ -111,7 +111,7 @@ export const getInvoices = createServerFn({ method: "GET" })
   })
   .handler(async ({ data }) => {
     await initSchema();
-    const rows = await sql`SELECT * FROM invoices WHERE user_id = ${data.userId} ORDER BY due_date ASC` as any[];
+    const rows = await sql()`SELECT * FROM invoices WHERE user_id = ${data.userId} ORDER BY due_date ASC` as any[];
     return rows.map((r) => ({ ...r, amount: Number(r.amount) }));
   });
 
@@ -123,7 +123,7 @@ export const updateInvoiceStatus = createServerFn({ method: "POST" })
   })
   .handler(async ({ data }) => {
     await initSchema();
-    await sql`UPDATE invoices SET status = ${data.status} WHERE id = ${data.invoiceId}`;
+    await sql()`UPDATE invoices SET status = ${data.status} WHERE id = ${data.invoiceId}`;
     return { success: true };
   });
 
@@ -137,7 +137,7 @@ export const getFinanceOverview = createServerFn({ method: "GET" })
     await initSchema();
 
     // Check if we need to seed mock data
-    const countResult = await sql`SELECT COUNT(*) as count FROM invoices WHERE user_id = ${data.userId}`;
+    const countResult = await sql()`SELECT COUNT(*) as count FROM invoices WHERE user_id = ${data.userId}`;
     const count = countResult[0] as { count: number };
 
     if (count.count === 0) {
@@ -153,12 +153,12 @@ export const getFinanceOverview = createServerFn({ method: "GET" })
       ];
 
       for (const inv of mockInvoices) {
-        await sql`INSERT INTO invoices (id, user_id, vendor_name, amount, due_date, status, invoice_date)
+        await sql()`INSERT INTO invoices (id, user_id, vendor_name, amount, due_date, status, invoice_date)
           VALUES (${generateId()}, ${data.userId}, ${inv.vendor}, ${inv.amount}, ${inv.due}, ${inv.status}, ${inv.inv_date})`;
       }
 
       // Also seed compliance tasks
-      const existingComplianceResult = await sql`SELECT COUNT(*) as count FROM compliance_tasks WHERE user_id = ${data.userId}`;
+      const existingComplianceResult = await sql()`SELECT COUNT(*) as count FROM compliance_tasks WHERE user_id = ${data.userId}`;
       const existingCompliance = existingComplianceResult[0] as { count: number };
       if (existingCompliance.count === 0) {
         // Import and run seeding inline to avoid circular issues
@@ -168,16 +168,16 @@ export const getFinanceOverview = createServerFn({ method: "GET" })
     }
 
     // Get stats
-    const totalRevenueResult = await sql`SELECT COALESCE(SUM(amount), 0) as total FROM invoices WHERE user_id = ${data.userId} AND status = 'paid'`;
+    const totalRevenueResult = await sql()`SELECT COALESCE(SUM(amount), 0) as total FROM invoices WHERE user_id = ${data.userId} AND status = 'paid'`;
     const totalRevenue = totalRevenueResult[0] as { total: number };
 
-    const unpaidTotalResult = await sql`SELECT COALESCE(SUM(amount), 0) as total FROM invoices WHERE user_id = ${data.userId} AND status IN ('unpaid', 'overdue')`;
+    const unpaidTotalResult = await sql()`SELECT COALESCE(SUM(amount), 0) as total FROM invoices WHERE user_id = ${data.userId} AND status IN ('unpaid', 'overdue')`;
     const unpaidTotal = unpaidTotalResult[0] as { total: number };
 
-    const unpaidCountResult = await sql`SELECT COUNT(*) as count FROM invoices WHERE user_id = ${data.userId} AND status IN ('unpaid', 'overdue')`;
+    const unpaidCountResult = await sql()`SELECT COUNT(*) as count FROM invoices WHERE user_id = ${data.userId} AND status IN ('unpaid', 'overdue')`;
     const unpaidCount = unpaidCountResult[0] as { count: number };
 
-    const invoices = await sql`SELECT * FROM invoices WHERE user_id = ${data.userId} ORDER BY due_date ASC` as any[];
+    const invoices = await sql()`SELECT * FROM invoices WHERE user_id = ${data.userId} ORDER BY due_date ASC` as any[];
 
     return {
       totalRevenue: Number(totalRevenue.total),
@@ -196,3 +196,36 @@ function generateMockMonthlyData() {
     expenses: Math.floor(Math.random() * 300000) + 150000,
   }));
 }
+
+export const seedDocuments = createServerFn({ method: "POST" })
+  .validator((data: unknown) => {
+    const { userId } = data as { userId: string };
+    if (!userId) throw new Error("User ID required");
+    return { userId };
+  })
+  .handler(async ({ data }) => {
+    await initSchema();
+
+    // Check if documents already exist
+    const countResult = await sql()`SELECT COUNT(*) as count FROM documents WHERE user_id = ${data.userId}`;
+    const count = countResult[0] as { count: number };
+    if (count.count > 0) return { seeded: count.count };
+
+    const sampleDocs = [
+      { filename: "Invoice_TechCorp_July2026.pdf", fileType: "invoice" },
+      { filename: "Office_Lease_Agreement.pdf", fileType: "contract" },
+      { filename: "GST_Return_June2026.pdf", fileType: "gst" },
+      { filename: "Employee_PAN_Card.pdf", fileType: "pan" },
+      { filename: "PO_SupplyChain_July2026.pdf", fileType: "purchase_order" },
+      { filename: "Salary_June2026_Priya.pdf", fileType: "salary_slip" },
+    ];
+
+    for (const doc of sampleDocs) {
+      const id = generateId();
+      const mockExtraction = EXTRACTION_TEMPLATES[doc.fileType];
+      await sql()`INSERT INTO documents (id, user_id, filename, file_type, extracted_data, status)
+        VALUES (${id}, ${data.userId}, ${doc.filename}, ${doc.fileType}, ${JSON.stringify(mockExtraction)}, 'processed')`;
+    }
+
+    return { seeded: sampleDocs.length };
+  });
